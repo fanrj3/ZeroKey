@@ -11,7 +11,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../src/App";
 import { ThemeProvider } from "../../src/components/theme-provider";
 import { GrantSheet } from "../../src/features/projects/grant-sheet";
-import { ApprovalForm } from "../../src/features/projects/approval-window";
+import {
+  ApprovalForm,
+  ApprovalWindow,
+} from "../../src/features/projects/approval-window";
 import { deferred, project, snapshot } from "./fixtures";
 import type { Snapshot } from "../../src/types";
 
@@ -58,6 +61,21 @@ beforeEach(() => {
 });
 
 describe("authorization handoff", () => {
+  it("shows a failed empty-window dismissal and lets the user retry", async () => {
+    const user = userEvent.setup();
+    mocks.dismissApproval
+      .mockRejectedValueOnce(new Error("无法隐藏审核窗口。"))
+      .mockResolvedValue(undefined);
+    render(<ApprovalWindow />);
+    await screen.findByText("暂无待审核申请。");
+    await user.click(screen.getByRole("button", { name: "关闭" }));
+    await screen.findByText("无法隐藏审核窗口。");
+    await user.click(screen.getByRole("button", { name: "关闭" }));
+    expect(mocks.dismissApproval).toHaveBeenCalledTimes(2);
+    expect(mocks.getSnapshot).not.toHaveBeenCalled();
+    expect(mocks.grant).not.toHaveBeenCalled();
+  });
+
   it("keeps an Agent scope visible while allowing model edits on demand", async () => {
     const user = userEvent.setup();
     render(
@@ -249,9 +267,7 @@ describe("authorization handoff", () => {
       ).toBe(true);
       await new Promise((resolve) => setTimeout(resolve, 2000));
       expect(mocks.dismissApproval).not.toHaveBeenCalled();
-      await user.click(
-        screen.getByRole("button", { name: "关闭" }),
-      );
+      await user.click(screen.getByRole("button", { name: "关闭" }));
       expect(mocks.dismissApproval).toHaveBeenCalledOnce();
     },
   );

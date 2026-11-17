@@ -869,7 +869,7 @@ pub async fn create_grant(
                 }
             }
         }
-        if window.label() == "approval" && native::hello_available() { let _ = window.hide(); }
+        if window.label() == "approval" && native::hello_available() { crate::desktop::hide_approval(window.app_handle())?; }
         state.authorize(&format!("ZeroKey: {} | {} | {} | ${}/day", request.name, identity, requested.iter().cloned().collect::<Vec<_>>().join(", "), request.daily_budget), request.pin.as_deref(), owner)?;
         let models: Vec<String> = requested.into_iter().collect();
         let mut body = json!({ "key_alias": format!("zerokey/{}", request.name), "models": models,
@@ -922,7 +922,7 @@ pub async fn create_grant(
             let _ = review_window.show();
             let _ = review_window.set_focus();
         } else {
-            let _ = review_window.hide();
+            let _ = crate::desktop::hide_approval(review_window.app_handle());
         }
     }
     use tauri::Emitter;

@@ -56,6 +56,8 @@ fn main() {
                             return;
                         }
                     }
+                    let _ = desktop::hide_approval(window.app_handle());
+                    return;
                 }
                 let _ = window.hide();
             }

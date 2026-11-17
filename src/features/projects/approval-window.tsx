@@ -32,6 +32,18 @@ export function ApprovalWindow() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [failure, setFailure] = useState("");
   const [loading, setLoading] = useState(true);
+  const [closing, setClosing] = useState(false);
+  async function dismiss() {
+    if (closing) return;
+    setClosing(true);
+    try {
+      await api.dismissApproval();
+    } catch (error) {
+      setFailure(errorText(error));
+    } finally {
+      setClosing(false);
+    }
+  }
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -92,8 +104,12 @@ export function ApprovalWindow() {
             ) : (
               <p className="text-sm text-muted-foreground">暂无待审核申请。</p>
             )}
-            <Button variant="ghost" onClick={() => void api.dismissApproval()}>
-              关闭
+            <Button
+              variant="ghost"
+              disabled={closing}
+              onClick={() => void dismiss()}
+            >
+              {closing ? "正在关闭…" : "关闭"}
             </Button>
           </div>
         </>

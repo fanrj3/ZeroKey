@@ -302,13 +302,24 @@ pub fn setup(
     Ok(())
 }
 
-#[tauri::command]
-pub fn dismiss_approval(app: tauri::AppHandle) -> Result<(), String> {
-    if app.state::<Desktop>().authorizing.load(Ordering::SeqCst) {
-        return Err("正在完成本机验证，请稍候。".into());
-    }
+pub fn hide_approval(app: &tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("approval") {
+        // Windows can restore a hidden HWND without updating Tao's cached visibility.
+        // Reconcile a visibly restored window before hiding it; already hidden windows
+        // stay hidden, including when the completed-request poll dismisses them again.
+        #[cfg(windows)]
+        if window.is_visible().map_err(|_| "无法读取审核窗口状态。")? {
+            window.show().map_err(|_| "无法同步审核窗口状态。")?;
+        }
         window.hide().map_err(|_| "无法隐藏审核窗口。")?;
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn dismiss_approval(app: tauri::AppHandle) -> Result<(), String> {
+    if app.state::<Desktop>().authorizing.load(Ordering::SeqCst) {
+        return Err("正在完成本机验证，请稍候。".into());
+    }
+    hide_approval(&app)
 }
