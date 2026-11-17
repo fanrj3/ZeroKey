@@ -1,0 +1,91 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ZeroKey",
+  "version": "0.2.0",
+  "identifier": "app.zerokey.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build && npm run prepare:agent",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "ZeroKey",
+        "width": 1040,
+        "height": 700,
+        "minWidth": 860,
+        "minHeight": 580,
+        "center": true,
+        "decorations": false,
+        "backgroundColor": "#0a0a0a"
+      },
+      {
+        "label": "approval",
+        "title": "ZeroKey 授权请求",
+        "url": "index.html?view=approval",
+        "width": 560,
+        "height": 660,
+        "minWidth": 480,
+        "minHeight": 520,
+        "center": true,
+        "visible": false,
+        "alwaysOnTop": true,
+        "decorations": false,
+        "resizable": true,
+        "skipTaskbar": true,
+        "backgroundColor": "#0a0a0a"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data:; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "createUpdaterArtifacts": true,
+    "publisher": "fanrj3",
+    "license": "MIT",
+    "shortDescription": "Local model access for Agents",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "resources/agent/": "agent/",
+      "resources/runtime/": "runtime/",
+      "resources/THIRD-PARTY-NOTICES.txt": "THIRD-PARTY-NOTICES.txt",
+      "resources/LICENSE": "LICENSE"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "SimpChinese",
+          "English"
+        ],
+        "displayLanguageSelector": false
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/fanrj3/ZeroKey/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      },
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM3REVEQjY5OENCM0E2RjgKUldUNHByT01hZHZleDZqUkpRQll5UkZwbXl6bWNIN1dXNGUxWnIwWXFQNnpYbHFMWlUyWll0NU8K",
+      "requireSignedVersion": true
+    }
+  }
+}

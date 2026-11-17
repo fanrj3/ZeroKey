@@ -1,0 +1,4 @@
+interface:
+  display_name: "配置项目模型"
+  short_description: "通过本地授权为项目配置长期虚拟 Key，后续自动复用并隐藏上游凭据"
+  default_prompt: "使用 $provision-key 为当前项目配置一个够用的模型。"
