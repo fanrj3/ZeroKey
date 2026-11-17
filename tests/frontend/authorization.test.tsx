@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   requestStatus: vi.fn(),
   dismissApproval: vi.fn(),
   integration: vi.fn(),
+  revoke: vi.fn(),
 }));
 vi.mock("@/api", () => ({
   desktop: true,
@@ -35,6 +36,7 @@ vi.mock("@/api", () => ({
     requestStatus: mocks.requestStatus,
     dismissApproval: mocks.dismissApproval,
     integration: mocks.integration,
+    revoke: mocks.revoke,
   },
 }));
 vi.mock("@tauri-apps/api/window", () => ({
@@ -46,6 +48,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.getSnapshot.mockReset().mockResolvedValue(snapshot);
   mocks.grant.mockReset();
+  mocks.revoke.mockReset().mockResolvedValue(undefined);
   mocks.pending.mockResolvedValue(null);
   mocks.requestStatus.mockResolvedValue({ status: "pending" });
   mocks.dismissApproval.mockResolvedValue(undefined);
@@ -57,6 +60,114 @@ beforeEach(() => {
     path: "C:/synthetic/config.toml",
     snippet: "",
     error: null,
+  });
+});
+
+function sheetAnimations() {
+  // JSDOM has no CSS animation engine. Model live computed names, then deliver animationend.
+  vi.stubGlobal("CSS", { escape: (name: string) => name });
+  const computedStyle = window.getComputedStyle.bind(window);
+  vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => {
+    const styles = computedStyle(element, pseudo);
+    if (
+      element.matches(
+        '[data-slot="sheet-content"], [data-slot="sheet-overlay"]',
+      )
+    ) {
+      Object.defineProperty(styles, "animationName", {
+        get: () =>
+          element.getAttribute("data-state") === "closed" ? "exit" : "enter",
+      });
+    }
+    return styles;
+  });
+}
+
+function finishSheetAnimation(element: Element) {
+  const event = new Event("animationend", { bubbles: true });
+  Object.defineProperty(event, "animationName", { value: "exit" });
+  fireEvent(element, event);
+}
+
+describe("drawer exit lifecycle", () => {
+  it.each(["关闭面板", "取消", "Escape"])(
+    "keeps the grant drawer mounted until its exit animation ends via %s",
+    async (action) => {
+      sheetAnimations();
+      const user = userEvent.setup();
+      render(
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>,
+      );
+      await user.click(await screen.findByRole("button", { name: "添加项目" }));
+      const drawer = screen.getByRole("dialog", { name: "添加项目授权" });
+      await user.type(screen.getByLabelText("项目名称"), "unsaved");
+      if (action === "Escape") await user.keyboard("{Escape}");
+      else
+        await user.click(within(drawer).getByRole("button", { name: action }));
+      expect(drawer.isConnected).toBe(true);
+      expect(drawer.getAttribute("data-state")).toBe("closed");
+      finishSheetAnimation(drawer);
+      const overlay = document.querySelector('[data-slot="sheet-overlay"]');
+      if (overlay) finishSheetAnimation(overlay);
+      await waitFor(() => expect(drawer.isConnected).toBe(false));
+      await user.click(screen.getByRole("button", { name: "添加项目" }));
+      expect(
+        (screen.getByLabelText("项目名称") as HTMLInputElement).value,
+      ).toBe("");
+      expect(mocks.grant).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps a revoked project's detail visible through exit after the list refreshes", async () => {
+    sheetAnimations();
+    const user = userEvent.setup();
+    mocks.getSnapshot.mockResolvedValueOnce({
+      ...snapshot,
+      projects: [project],
+    });
+    render(
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>,
+    );
+    await user.click(await screen.findByRole("button", { name: "Demo" }));
+    const drawer = screen.getByRole("dialog", { name: "Demo" });
+    await user.click(within(drawer).getByRole("button", { name: "撤销授权" }));
+    await user.click(screen.getByRole("button", { name: "确认撤销" }));
+    await waitFor(() => expect(mocks.getSnapshot).toHaveBeenCalledTimes(2));
+    expect(drawer.isConnected).toBe(true);
+    expect(drawer.getAttribute("data-state")).toBe("closed");
+    finishSheetAnimation(drawer);
+    await waitFor(() => expect(drawer.isConnected).toBe(false));
+  });
+
+  it("does not let the old drawer's unmount close its replacement", async () => {
+    sheetAnimations();
+    const user = userEvent.setup();
+    mocks.getSnapshot.mockResolvedValue({ ...snapshot, projects: [project] });
+    render(
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>,
+    );
+    await user.click(await screen.findByRole("button", { name: "Demo" }));
+    const detail = screen.getByRole("dialog", { name: "Demo" });
+    await user.click(within(detail).getByRole("button", { name: "调整授权" }));
+    const edit = screen.getByRole("dialog", { name: "调整项目授权" });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(edit.isConnected).toBe(true);
+    expect(edit.getAttribute("data-state")).toBe("open");
+    await user.click(within(edit).getByRole("button", { name: "取消" }));
+    finishSheetAnimation(edit);
+    const overlay = document.querySelector('[data-slot="sheet-overlay"]');
+    if (overlay) finishSheetAnimation(overlay);
+    await waitFor(() => expect(edit.isConnected).toBe(false));
+    await user.click(screen.getByRole("button", { name: "Demo" }));
+    expect(
+      screen.getByRole("dialog", { name: "Demo" }).getAttribute("data-state"),
+    ).toBe("open");
   });
 });
 

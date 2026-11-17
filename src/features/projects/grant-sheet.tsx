@@ -48,12 +48,16 @@ import {
 } from "@/components/ui/sheet";
 
 export function GrantSheet({
+  open: isOpen = true,
+  onExited,
   snapshot,
   project,
   request,
   onClose,
   onSaved,
 }: {
+  open?: boolean;
+  onExited?: () => void;
   snapshot: Snapshot;
   project?: Project;
   request?: AgentRequest;
@@ -148,13 +152,14 @@ export function GrantSheet({
   }
   return (
     <Sheet
-      open
+      open={isOpen}
       onOpenChange={(value) => {
         if (!value) void close();
       }}
     >
       <SheetContent
-        className="overflow-hidden gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-xl"
+        className="overflow-hidden gap-0 data-open:duration-200 data-closed:duration-150 data-[side=right]:w-full data-[side=right]:sm:max-w-xl"
+        onCloseAutoFocus={onExited}
         showCloseButton={!busy}
         onInteractOutside={(event) => {
           if (busy) event.preventDefault();

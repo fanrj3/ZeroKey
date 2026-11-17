@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   CircleCheck,
@@ -45,17 +45,34 @@ import { SourcesPage } from "@/features/sources/sources-page";
 import { UsagePage } from "@/features/usage/usage-page";
 import { SettingsPage } from "@/features/settings/settings-page";
 
-type Panel =
+type PanelContent =
   | { kind: "grant"; project?: Project; request?: AgentRequest }
-  | { kind: "detail"; id: string }
-  | null;
+  | { kind: "detail"; project: Project };
+type Panel = PanelContent & { open: boolean; session: number };
 
 export default function App() {
   const [page, setPage] = useState<Page>("projects");
-  const [panel, setPanel] = useState<Panel>(null);
+  const [panel, setPanel] = useState<Panel | null>(null);
+  const panelSequence = useRef(0);
+  function showPanel(content: PanelContent) {
+    setPanel({ ...content, open: true, session: ++panelSequence.current });
+  }
+  const closePanel = useCallback((session?: number) => {
+    setPanel((current) =>
+      current && (session === undefined || current.session === session)
+        ? { ...current, open: false }
+        : current,
+    );
+  }, []);
+  function finishClose(session: number) {
+    // Radix calls this after its exit animation. An older panel cannot close a new one.
+    setPanel((current) =>
+      current?.session === session && !current.open ? null : current,
+    );
+  }
   const [authorizationTarget, setAuthorizationTarget] = useState(0);
   const { snapshot, loading, error, lastCheckedAt, refresh, rememberProject } =
-    useGateway({ autoRefresh: panel?.kind !== "grant" });
+    useGateway({ autoRefresh: !(panel?.open && panel.kind === "grant") });
   const connected = !!snapshot?.connected && !error;
   useEffect(() => {
     if (!desktop) return;
@@ -77,7 +94,8 @@ export default function App() {
     };
   }, []);
   useEffect(() => {
-    if (!desktop || panel?.kind !== "grant" || !panel.request) return;
+    if (!desktop || !panel?.open || panel.kind !== "grant" || !panel.request)
+      return;
     let disposed = false;
     const requestId = panel.request.requestId;
     const timer = setInterval(() => {
@@ -86,12 +104,7 @@ export default function App() {
         .then(({ status }) => {
           if (disposed || !["canceled", "expired", "failed"].includes(status))
             return;
-          setPanel((current) =>
-            current?.kind === "grant" &&
-            current.request?.requestId === requestId
-              ? null
-              : current,
-          );
+          closePanel(panel.session);
           toast.info(
             status === "canceled"
               ? "Agent 申请已取消"
@@ -106,12 +119,12 @@ export default function App() {
       disposed = true;
       clearInterval(timer);
     };
-  }, [panel]);
+  }, [panel, closePanel]);
   useEffect(() => {
     if (!desktop) return;
     const navigation = listen<string>("navigate", ({ payload }) => {
       if (["projects", "sources", "usage", "settings"].includes(payload)) {
-        setPanel(null);
+        closePanel();
         setPage(payload as Page);
       }
     });
@@ -120,17 +133,18 @@ export default function App() {
       void navigation.then((fn) => fn()).catch(() => {});
       void changed.then((fn) => fn()).catch(() => {});
     };
-  }, [refresh]);
+  }, [refresh, closePanel]);
   const projects = snapshot?.projects ?? [];
   const selected =
     panel?.kind === "detail"
-      ? projects.find((project) => project.id === panel.id)
+      ? (projects.find((project) => project.id === panel.project.id) ??
+        panel.project)
       : undefined;
   const title = navigation.find((item) => item.id === page)!.label;
   async function closeGrant() {
     if (panel?.kind === "grant" && panel.request)
       await api.cancel(panel.request.requestId);
-    setPanel(null);
+    if (panel) closePanel(panel.session);
   }
   function dashboard() {
     void api.dashboard().catch((error) => toast.error(errorText(error)));
@@ -325,9 +339,9 @@ export default function App() {
                       <ProjectsPage
                         projects={projects}
                         connected={connected}
-                        onAdd={() => setPanel({ kind: "grant" })}
+                        onAdd={() => showPanel({ kind: "grant" })}
                         onSelect={(project) =>
-                          setPanel({ kind: "detail", id: project.id })
+                          showPanel({ kind: "detail", project })
                         }
                       />
                     )}
@@ -360,26 +374,31 @@ export default function App() {
         </SidebarInset>
         {panel?.kind === "grant" && snapshot && (
           <GrantSheet
+            key={panel.session}
+            open={panel.open}
+            onExited={() => finishClose(panel.session)}
             snapshot={snapshot}
             project={panel.project}
             request={panel.request}
             onClose={closeGrant}
             onSaved={(project) => {
               rememberProject(project);
-              setPanel({ kind: "detail", id: project.id });
+              showPanel({ kind: "detail", project });
               void refresh();
             }}
           />
         )}
         {selected && panel?.kind === "detail" && (
           <ProjectSheet
-            key={selected.id}
+            key={panel.session}
+            open={panel.open}
+            onExited={() => finishClose(panel.session)}
             project={selected}
             connected={connected}
-            onClose={() => setPanel(null)}
-            onEdit={() => setPanel({ kind: "grant", project: selected })}
+            onClose={() => closePanel(panel.session)}
+            onEdit={() => showPanel({ kind: "grant", project: selected })}
             onRevoked={async () => {
-              setPanel(null);
+              closePanel(panel.session);
               await refresh();
             }}
             onTested={refresh}

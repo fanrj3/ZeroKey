@@ -84,6 +84,37 @@ fn hash(value: &str) -> String {
     format!("{:x}", Sha256::digest(value.as_bytes()))
 }
 
+fn issuance_body(request: &GrantRequest, models: &[String], identity: &str) -> Value {
+    // LiteLLM requires globally unique aliases, including while the old grant is active.
+    let mut body = json!({
+        "key_alias": format!("zerokey/{}/{}", request.name.trim(), uuid::Uuid::new_v4()),
+        "models": models,
+        "max_budget": request.daily_budget,
+        "budget_duration": "1d",
+        "key_type": "llm_api",
+        "metadata": { "managed_by": "ZeroKey", "project": identity, "reasons": request.reasons }
+    });
+    if let Some(duration) = &request.duration {
+        body["duration"] = json!(duration);
+    }
+    body
+}
+
+fn gateway_error(code: u16, body: &Value) -> String {
+    // Classify only known fields. Gateway messages may contain credentials or request bodies.
+    match code {
+        400 => match body["error"]["param"].as_str() {
+            Some("key_alias") => "网关中已存在同名凭证，请更新 ZeroKey 后重新授权。".into(),
+            Some("max_budget") => "网关拒绝了预算设置，请检查 LiteLLM 的预算上限与账户额度。".into(),
+            _ => "网关拒绝了请求参数（HTTP 400），请检查模型、预算或有效期配置。".into(),
+        },
+        401 => "网关拒绝了凭证，请检查连接或重新授权。".into(),
+        403 => "当前凭证没有这个模型或操作的权限。".into(),
+        402 | 422 => "预算或套餐额度不足，请检查网关与来源账户。".into(),
+        _ => format!("网关请求失败（HTTP {code}），请稍后重试。"),
+    }
+}
+
 fn key_status(info: &Value) -> String {
     if info["blocked"].as_bool() == Some(true) {
         return "blocked".into();
@@ -286,12 +317,8 @@ impl Broker {
                 .map_err(|_| "GATEWAY_UNAVAILABLE: 无法连接网关，请检查地址和服务是否运行。")?;
             let code = response.status();
             if !code.is_success() {
-                return Err(match code.as_u16() {
-                    401 => "网关拒绝了凭证，请检查连接或重新授权。".into(),
-                    403 => "当前凭证没有这个模型或操作的权限。".into(),
-                    402 | 422 => "预算或套餐额度不足，请检查网关与来源账户。".into(),
-                    _ => format!("网关请求失败（HTTP {}），请稍后重试。", code.as_u16()),
-                });
+                let detail = response.json::<Value>().await.unwrap_or(Value::Null);
+                return Err(gateway_error(code.as_u16(), &detail));
             }
             response
                 .json()
@@ -869,10 +896,7 @@ pub async fn create_grant(
         if window.label() == "approval" && native::hello_available() { crate::desktop::hide_approval(window.app_handle())?; }
         state.authorize(&format!("ZeroKey: {} | {} | {} | ${}/day", request.name, identity, requested.iter().cloned().collect::<Vec<_>>().join(", "), request.daily_budget), request.pin.as_deref(), owner)?;
         let models: Vec<String> = requested.into_iter().collect();
-        let mut body = json!({ "key_alias": format!("zerokey/{}", request.name), "models": models,
-            "max_budget": request.daily_budget, "budget_duration": "1d", "key_type": "llm_api",
-            "metadata": {"managed_by": "ZeroKey", "project": identity, "reasons":request.reasons} });
-        if let Some(duration) = &request.duration { body["duration"] = json!(duration); }
+        let body = issuance_body(&request, &models, &identity);
         if let Some(request_id) = &request.request_id { queue.check_deadline(request_id, Utc::now().timestamp())?; }
         issuance_started = true;
         let issued = state.api_body(Method::POST, "/key/generate", Some(body), None)?;
@@ -1057,6 +1081,53 @@ pub fn open_dashboard(state: State<'_, Arc<Broker>>) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn changing_a_project_budget_issues_a_unique_alias_with_the_reviewed_scope() {
+        let mut grant = GrantRequest {
+            name: "ScienceBoard-GIS".into(),
+            path: "test-project".into(),
+            models: vec!["test/text-model".into()],
+            daily_budget: 1.,
+            duration: None,
+            pin: None,
+            request_id: None,
+            reasons: vec!["代码辅助".into()],
+        };
+        let first = issuance_body(&grant, &grant.models, "test-project");
+        grant.daily_budget = 100.;
+        let replacement = issuance_body(&grant, &grant.models, "test-project");
+        assert_ne!(first["key_alias"], replacement["key_alias"]);
+        assert!(replacement["key_alias"].as_str().unwrap().starts_with("zerokey/ScienceBoard-GIS/"));
+        assert_eq!(replacement["max_budget"], 100.);
+        assert_eq!(replacement["budget_duration"], "1d");
+        assert_eq!(replacement["models"], json!(["test/text-model"]));
+        assert_eq!(replacement["metadata"]["project"], "test-project");
+        assert_eq!(replacement["metadata"]["reasons"], json!(["代码辅助"]));
+        assert!(replacement.get("duration").is_none());
+        grant.duration = Some("7d".into());
+        assert_eq!(issuance_body(&grant, &grant.models, "test-project")["duration"], "7d");
+    }
+
+    #[test]
+    fn gateway_errors_classify_bad_parameters_without_echoing_sensitive_details() {
+        for (param, expected) in [
+            ("key_alias", "同名凭证"),
+            ("max_budget", "预算设置"),
+            ("unknown", "请求参数"),
+        ] {
+            let detail = json!({"error":{"param":param,"message":"sk-synthetic-secret", "key":"sk-synthetic-secret"}});
+            let error = gateway_error(400, &detail);
+            assert!(error.contains(expected));
+            assert!(!error.contains("sk-synthetic-secret"));
+        }
+        for code in [400, 401, 402, 403, 422, 500] {
+            let error = gateway_error(code, &json!({"error":"sk-synthetic-secret"}));
+            assert!(!error.contains("sk-synthetic-secret"));
+            assert!(!error.is_empty());
+        }
+        assert!(gateway_error(400, &Value::Null).contains("请求参数"));
+    }
+
     #[test]
     fn gateway_rejects_insecure_remote_and_embedded_secrets() {
         assert!(validate_gateway("http://127.0.0.1:4000").is_ok());

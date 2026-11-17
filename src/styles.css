@@ -151,5 +151,13 @@
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
+    [data-slot="sheet-content"],
+    [data-slot="sheet-overlay"] {
+      animation-duration: 100ms !important;
+      --tw-enter-translate-x: 0 !important;
+      --tw-enter-translate-y: 0 !important;
+      --tw-exit-translate-x: 0 !important;
+      --tw-exit-translate-y: 0 !important;
+    }
   }
 }

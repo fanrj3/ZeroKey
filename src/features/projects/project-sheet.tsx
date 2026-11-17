@@ -31,6 +31,8 @@ import {
 } from "@/components/ui/sheet";
 
 export function ProjectSheet({
+  open = true,
+  onExited,
   project,
   connected,
   onClose,
@@ -38,6 +40,8 @@ export function ProjectSheet({
   onRevoked,
   onTested,
 }: {
+  open?: boolean;
+  onExited?: () => void;
   project: Project;
   connected: boolean;
   onClose: () => void;
@@ -81,13 +85,14 @@ export function ProjectSheet({
   }
   return (
     <Sheet
-      open
+      open={open}
       onOpenChange={(value) => {
         if (!value && !busy) onClose();
       }}
     >
       <SheetContent
-        className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-xl"
+        className="gap-0 data-open:duration-200 data-closed:duration-150 data-[side=right]:w-full data-[side=right]:sm:max-w-xl"
+        onCloseAutoFocus={onExited}
         showCloseButton={!busy}
         onEscapeKeyDown={(event) => {
           if (busy) event.preventDefault();
