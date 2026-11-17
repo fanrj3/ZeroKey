@@ -54,7 +54,9 @@ test("secrets and unknown fields rejected before any approval operation", async 
     { pin: "123456" },
     { masterKey: "secret" },
     { models: ["*"] },
-    { dailyBudget: 11 },
+    { dailyBudget: 0 },
+    { dailyBudget: -1 },
+    { dailyBudget: null },
     { duration: "2m" },
     { projectPath: "relative" },
   ]) {
@@ -90,6 +92,19 @@ test("request normalized, queried and canceled without blocking or exposing keys
       "canceled",
     );
   assert.ok(!JSON.stringify(response).includes("sk-fixture"));
+});
+
+test("requests a $100 daily budget without a fixed amount ceiling", async (t) => {
+  const client = await fixture(t);
+  const response = await client.call("zerokey_request_access", {
+    projectPath: process.cwd(),
+    appName: "large-budget",
+    models: ["source/z", "source/a"],
+    dailyBudget: 100,
+  });
+  assert.notEqual(response.isError, true);
+  assert.equal(response.structuredContent.status, "pending");
+  assert.equal(response.structuredContent.requestId, id);
 });
 test("existing authorization returns launcher and final scope, never credentials", async (t) => {
   const client = await fixture(t);

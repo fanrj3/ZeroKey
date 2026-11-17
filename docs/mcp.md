@@ -33,7 +33,7 @@ node scripts/mcp-config.ts codex
 | `zerokey_wait_request` | 等待原申请变化（最多 30 秒），超时返回当前状态 |
 | `zerokey_project_setup` | 为已授权项目返回无密钥的接入模板和首次调用命令 |
 
-申请参数为 `projectPath`（单个绝对路径）、`appName`、`models`（带来源前缀）和可选 `reasons`（最多 8 项、每项 150 字符），`dailyBudget` 默认 1 美元/日，上限 10 美元；`duration` 省略或 null 代表长期有效，也可显式传 `7d` 等值。
+申请参数为 `projectPath`（单个绝对路径）、`appName`、`models`（带来源前缀）和可选 `reasons`（最多 8 项、每项 150 字符），`dailyBudget` 默认 1 美元/日，接受大于 0 的有限金额，不设固定金额上限，最终以用户在本机确认的预算为准；`duration` 省略或 null 代表长期有效，也可显式传 `7d` 等值。
 
 新申请返回 `pending`、`requestId` 和 `expiresAt`（Unix 秒）。托盘进程弹出居中的独立审核窗口；用户可调整单个项目、来源、模型、理由和预算。点击指纹按钮后审核窗口隐藏，再由本人完成 Windows Hello；验证取消会恢复表单。十分钟是等待审批的窗口，与 Key 的有效期独立。
 

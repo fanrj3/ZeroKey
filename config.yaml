@@ -8,12 +8,11 @@ model_list: []
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
 
-# These bounds apply to keys created by ZeroKey or the LiteLLM Admin UI.
+# Daily budget amounts are chosen during local approval, without a fixed ceiling.
+# Reset-window and rate bounds apply to keys created here or in the Admin UI.
 # Duration is intentionally omitted: a key with no duration does not expire.
-# The broker should expose named profiles instead of passing arbitrary values through.
 litellm_settings:
   upperbound_key_generate_params:
-    max_budget: 10
     budget_duration: 1d
     rpm_limit: 60
     tpm_limit: 100000

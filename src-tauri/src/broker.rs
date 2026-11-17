@@ -429,11 +429,8 @@ fn validate_grant(request: &GrantRequest) -> Result<(), String> {
     {
         return Err("项目名称需要 1–100 个可显示字符。".into());
     }
-    if !request.daily_budget.is_finite()
-        || request.daily_budget <= 0.0
-        || request.daily_budget > 10.0
-    {
-        return Err("每日预算需大于 $0 且不超过当前网关上限 $10。".into());
+    if !request.daily_budget.is_finite() || request.daily_budget <= 0.0 {
+        return Err("每日预算需为大于 $0 的有效金额。".into());
     }
     if request.models.is_empty()
         || request.models.len() > 100
@@ -1074,7 +1071,7 @@ mod tests {
         }
     }
     #[test]
-    fn grant_rejects_unbounded_budgets_and_wildcards() {
+    fn grant_accepts_positive_finite_budgets_and_rejects_wildcards() {
         let mut grant = GrantRequest {
             name: "demo".into(),
             path: ".".into(),
@@ -1085,8 +1082,11 @@ mod tests {
             request_id: None,
             reasons: vec![],
         };
-        assert!(validate_grant(&grant).is_ok());
-        for budget in [0., -1., 11., f64::NAN, f64::INFINITY] {
+        for budget in [0.01, 1., 11., 100., 10000.] {
+            grant.daily_budget = budget;
+            assert!(validate_grant(&grant).is_ok());
+        }
+        for budget in [0., -1., f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             grant.daily_budget = budget;
             assert!(validate_grant(&grant).is_err());
         }

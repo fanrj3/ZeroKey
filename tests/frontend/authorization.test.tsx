@@ -183,15 +183,20 @@ describe("authorization handoff", () => {
     expect(mocks.grant).not.toHaveBeenCalled();
     await user.keyboard("{Escape}");
     await user.clear(screen.getByLabelText("每日预算（美元）"));
-    await user.type(screen.getByLabelText("每日预算（美元）"), "0.5");
+    await user.type(screen.getByLabelText("每日预算（美元）"), "100");
+    expect(
+      (
+        screen.getByLabelText("每日预算（美元）") as HTMLInputElement
+      ).checkValidity(),
+    ).toBe(true);
     await user.click(screen.getByRole("button", { name: "确认并授权" }));
     await screen.findByText("本机验证已取消");
     expect(mocks.grant).toHaveBeenCalledWith(
-      expect.objectContaining({ dailyBudget: 0.5, models: project.models }),
+      expect.objectContaining({ dailyBudget: 100, models: project.models }),
     );
     expect(
       (screen.getByLabelText("每日预算（美元）") as HTMLInputElement).value,
-    ).toBe("0.5");
+    ).toBe("100");
     expect(
       (screen.getByRole("button", { name: "确认并授权" }) as HTMLButtonElement)
         .disabled,
@@ -211,7 +216,17 @@ describe("authorization handoff", () => {
         onSaved={onSaved}
       />,
     );
+    await user.clear(screen.getByLabelText("每日预算（美元）"));
+    await user.type(screen.getByLabelText("每日预算（美元）"), "100");
+    expect(
+      (
+        screen.getByLabelText("每日预算（美元）") as HTMLInputElement
+      ).checkValidity(),
+    ).toBe(true);
     await user.click(screen.getByRole("button", { name: "确认并授权" }));
+    expect(mocks.grant).toHaveBeenCalledWith(
+      expect.objectContaining({ dailyBudget: 100 }),
+    );
     const error = await screen.findByRole("alert", { name: "请检查后重试" });
     expect(document.activeElement).toBe(error);
     expect(scroll).toHaveBeenCalledWith({ block: "nearest" });

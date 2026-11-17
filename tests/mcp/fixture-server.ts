@@ -58,7 +58,7 @@ serveStdio(() =>
         body.models[0] !== "source/a" ||
         body.models[1] !== "source/z" ||
         body.duration !== null ||
-        body.dailyBudget !== 1
+        body.dailyBudget !== (body.name === "large-budget" ? 100 : 1)
       )
         throw new Error("unexpected normalized input");
       state = "pending";

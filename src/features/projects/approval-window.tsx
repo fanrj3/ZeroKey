@@ -400,7 +400,6 @@ export function ApprovalForm({
                 id="approval-budget"
                 type="number"
                 min="0.01"
-                max="10"
                 step="0.01"
                 required
                 value={budget}

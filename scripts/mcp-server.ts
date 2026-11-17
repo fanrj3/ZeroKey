@@ -324,7 +324,7 @@ export function createServer(broker: BrokerCall = callBroker) {
             )
             .min(1)
             .max(100),
-          dailyBudget: z.number().positive().max(10).default(1),
+          dailyBudget: z.number().positive().default(1),
           duration: z
             .string()
             .regex(/^[1-9]\d{0,8}[dh]$/)

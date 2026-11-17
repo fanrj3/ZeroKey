@@ -376,7 +376,6 @@ export function GrantSheet({
                     aria-describedby="grant-budget-help"
                     type="number"
                     min="0.01"
-                    max="10"
                     step="0.01"
                     required
                     value={budget}
@@ -407,8 +406,8 @@ export function GrantSheet({
                 </Field>
               </div>
               <FieldDescription id="grant-budget-help">
-                按 LiteLLM 估算，随网关预算窗口重置；上限
-                $10/天。中转站实际扣费和 OpenCode Go 套餐额度以来源后台为准。
+                按你设置的每日预算限制用量，随网关预算窗口重置。中转站实际扣费和
+                OpenCode Go 套餐额度以来源后台为准。
               </FieldDescription>
               <p className="text-sm text-muted-foreground">
                 {snapshot.nativeAuth
