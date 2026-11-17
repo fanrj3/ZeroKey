@@ -34,3 +34,11 @@ GitHub 仓库 Secrets 保存 `TAURI_SIGNING_PRIVATE_KEY`，有口令时另设 `T
 发布包含安装包、`.sig`、`latest.json` 和 `SHA256SUMS.txt`。应用固定读取 `https://github.com/fanrj3/ZeroKey/releases/latest/download/latest.json`，仅接受较新版本，安装前由 Tauri 校验内置公钥对应的签名。下载由用户触发；安装会重启应用，并与本机授权/撤销使用同一个跨进程操作锁。更新不操作系统凭据和网关数据库。
 
 Tauri 更新签名用于应用内验证，和 Windows Authenticode 代码签名不同；当前安装包没有商业代码签名证书。首次安装可能显示 Windows 发布者提示。
+
+## v0.2.0 发布验证
+
+首个版本已发布至 [GitHub Release](https://github.com/fanrj3/ZeroKey/releases/tag/v0.2.0)，Windows x64 安装包为 26.30 MiB。16 项 UI、12 项 MCP/配置/模板、11 项 Rust 测试及类型检查通过。
+
+已使用仅覆盖应用版本号的本地 v0.1.0 测试构建，实际完成发现 GitHub v0.2.0、下载安装包、签名校验、安装及重启。重启后显示 v0.2.0 和“已是最新版本”；项目数据文件 SHA-256 未变。安装版在源码目录之外完成 CLI 检查、隔离客户端配置和 MCP 握手，8 个工具均可发现。
+
+本次 GitHub Actions 因账号计费锁定而未启动任务，因此 v0.2.0 使用本地签名构建发布。自动发布工作流和签名 Secret 已配置；账号计费问题解决后，后续标签可使用自动构建发布。无需修改已发布的 v0.2.0 标签。
