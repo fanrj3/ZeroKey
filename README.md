@@ -73,6 +73,8 @@ node scripts/zerokey.ts verify --project <项目绝对路径>
 node scripts/zerokey.ts run --project <项目绝对路径> -- node script.mjs
 ```
 
+Windows 后台调用没有终端连接时，`run` 自动避免创建控制台窗口，标准输入、输出、错误及退出码照常传递。可显式使用 `run --no-window --project <目录> -- node script.mjs`；交互式命令使用 `--interactive` 保留原终端行为。这两个选项互斥，放在程序参数分隔符 `--` 之前。`verify` 和 MCP 生成的后台启动命令默认无窗口运行。
+
 安装版将上述 `node scripts/zerokey.ts` 替换为 `"<安装目录>/runtime/node.exe" "<安装目录>/agent/zerokey.mjs"`；优先使用 MCP 返回的绝对启动命令。启动器将 Key、网关地址、模型、协议及会话 ID 注入子进程，不打印环境。Go 请求需要 `x-litellm-session-id`，模板会自动携带；同一对话复用会话 ID。
 
 可通过 `scripts/install-skill.ps1` 安装源码附带的 `provision-key` Skill，安装时写入实际源码路径。旧 Python 原型归档于 `prototypes/python`，当前流程不依赖 Python。

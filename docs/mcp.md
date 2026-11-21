@@ -65,6 +65,8 @@ node scripts/zerokey.ts verify --project D:/my-project
 
 可使用 `skills/provision-key` 获取 MCP 优先、CLI 后备的完整工作指引。运行 `scripts/install-skill.ps1` 更新本机 Skill 时，会按实际安装目录生成路径。
 
+Windows 上，MCP 返回的启动器和验证命令包含 `--no-window`，防止后台 Node.js 进程弹出控制台，仍保留标准输入、输出、错误及退出码。交互式终端任务可将它替换为 `--interactive`；不指定时，`run` 按终端连接自动选择模式，`verify` 默认后台模式。选项位于程序分隔符 `--` 之前。
+
 ## 验证
 
 ```powershell

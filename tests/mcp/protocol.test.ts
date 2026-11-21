@@ -114,6 +114,7 @@ test("existing authorization returns launcher and final scope, never credentials
   assert.equal(result.structuredContent.project.models[0], "source/approved");
   assert.equal(result.structuredContent.launcher.command, process.execPath);
   assert.equal(result.structuredContent.launcher.args.at(-1), "--");
+  assert.ok(result.structuredContent.launcher.args.includes("--no-window"));
   assert.ok(!JSON.stringify(result).includes("keyHash"));
   assert.ok(!JSON.stringify(result).includes("sk-fixture"));
 });
@@ -161,6 +162,7 @@ test("wait keeps the original request identity and setup returns a credential-fr
   assert.equal(setup.isError, undefined);
   assert.equal(setup.structuredContent.files.length, 2);
   assert.ok(setup.structuredContent.verify.args.includes("--model"));
+  assert.ok(setup.structuredContent.verify.args.includes("--no-window"));
   assert.ok(!JSON.stringify(setup).includes("sk-fixture"));
 });
 test("real entrypoint starts and lists tools without a gateway or desktop dependency", async (t) => {

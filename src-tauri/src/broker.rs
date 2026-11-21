@@ -775,6 +775,7 @@ pub fn run_cli() -> Option<i32> {
         }
         let project = project.ok_or("项目尚未授权。请先运行 provision。")?;
         if action == "run" {
+            let no_window = crate::launcher::no_window(&body)?;
             let key = native::read_secret(&format!("project/{id}"))?
                 .ok_or("系统凭据库中没有项目 Key。")?;
             if hash(&key) != project.key_hash {
@@ -792,6 +793,7 @@ pub fn run_cli() -> Option<i32> {
                 .collect::<Result<Vec<_>, _>>()?;
             let mut command = std::process::Command::new(name);
             command.args(arguments).current_dir(path);
+            crate::launcher::configure(&mut command, no_window);
             for name in [
                 "LITELLM_MASTER_KEY",
                 "LITELLM_SALT_KEY",

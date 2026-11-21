@@ -1,6 +1,6 @@
 [package]
 name = "zerokey"
-version = "0.3.0"
+version = "0.3.1"
 description = "Local project credentials for your model gateway"
 edition = "2021"
 rust-version = "1.90"
@@ -23,7 +23,7 @@ tauri-plugin-updater = { version = "2.14.1", default-features = false, features 
 
 [target.'cfg(target_os = "windows")'.dependencies]
 keyring = { version = "3.6.3", features = ["windows-native"] }
-windows = { version = "0.58", features = ["Foundation", "Security_Credentials_UI", "Win32_System_WinRT"] }
+windows = { version = "0.58", features = ["Foundation", "Security_Credentials_UI", "Win32_System_WinRT", "Win32_System_Console"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "3.6.3", features = ["apple-native"] }

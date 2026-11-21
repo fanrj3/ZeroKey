@@ -57,6 +57,7 @@ export async function projectSetup(
       args: [
         scriptPath("zerokey"),
         "run",
+        "--no-window",
         "--project",
         status.project.path,
         "--model",

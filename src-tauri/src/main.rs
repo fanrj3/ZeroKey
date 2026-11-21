@@ -3,6 +3,7 @@
 mod broker;
 mod desktop;
 mod integration;
+mod launcher;
 mod native;
 mod requests;
 mod sources;

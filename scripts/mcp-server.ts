@@ -186,12 +186,13 @@ function withLauncher(
             args: [
               scriptPath("zerokey"),
               "run",
+              "--no-window",
               "--project",
               value.project!.path,
               "--",
             ],
             instruction:
-              "在参数末尾追加程序与参数。凭证只注入子进程；勿打印环境。OpenCode Go 请求使用 LITELLM_SESSION_ID 作为 x-litellm-session-id。",
+              "在参数末尾追加程序与参数。后台运行不创建 Windows 控制台；交互式终端任务可将 --no-window 改为 --interactive。凭证只注入子进程，勿打印环境。OpenCode Go 请求使用 LITELLM_SESSION_ID 作为 x-litellm-session-id。",
           },
         }
       : {}),

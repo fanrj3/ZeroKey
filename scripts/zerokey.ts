@@ -24,7 +24,7 @@ const supported = [
 ];
 if (!supported.includes(action)) {
   console.error(
-    "Usage: node scripts/zerokey.ts models|doctor|status|provision|run|request|request-status|request-cancel|request-wait|init|verify|revoke [options]\nModels: --source <provider> --query <name> --limit <1-100> --cursor <offset>\nProject: --project <folder> [--model <id>] [-- program args]\nRequest: --app <name> --models <ids> --budget <USD/day> [--duration 7d] [--reason <text>]\nWait: --request-id <id> --after-status pending|authorizing --timeout <1-30>",
+    "Usage: node scripts/zerokey.ts models|doctor|status|provision|run|request|request-status|request-cancel|request-wait|init|verify|revoke [options]\nModels: --source <provider> --query <name> --limit <1-100> --cursor <offset>\nProject: --project <folder> [--model <id>] [-- program args]\nRun/verify: --no-window | --interactive (automatic when omitted)\nRequest: --app <name> --models <ids> --budget <USD/day> [--duration 7d] [--reason <text>]\nWait: --request-id <id> --after-status pending|authorizing --timeout <1-30>",
   );
   process.exit(1);
 }
@@ -38,6 +38,19 @@ for (let index = 0; index < args.length; index++) {
   if (option === "--") {
     body.program = args.slice(index + 1);
     break;
+  }
+  if (option === "--no-window" || option === "--interactive") {
+    if (!["run", "verify"].includes(action)) {
+      console.error(`${option} is only supported by run and verify.`);
+      process.exit(1);
+    }
+    const noWindow = option === "--no-window";
+    if (body.noWindow !== undefined && body.noWindow !== noWindow) {
+      console.error("--no-window and --interactive cannot be combined.");
+      process.exit(1);
+    }
+    body.noWindow = noWindow;
+    continue;
   }
   const value = args[++index];
   if (!value) {
@@ -68,6 +81,13 @@ for (let index = 0; index < args.length; index++) {
 }
 if (typeof body.path === "string" && !body.name)
   body.name = body.path.split(/[\\/]/).filter(Boolean).pop();
+if (action === "run" || action === "verify") {
+  body.noWindow ??=
+    action === "verify" ||
+    ![process.stdin, process.stdout, process.stderr].some(
+      (stream) => stream.isTTY,
+    );
+}
 let binary: string;
 try {
   binary = brokerBinary();
