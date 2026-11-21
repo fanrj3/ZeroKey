@@ -1,6 +1,6 @@
 [package]
 name = "zerokey"
-version = "0.2.3"
+version = "0.3.0"
 description = "Local project credentials for your model gateway"
 edition = "2021"
 rust-version = "1.90"

@@ -46,6 +46,7 @@ The core workflow is: inspect available models, choose a project folder, review 
 - Keep management and project credentials in the system credential store. The native broker injects a project virtual key into the launched program; generated credentials are not returned in agent output.
 - Daily budgets use gateway cost estimates. A relay's actual charges or an OpenCode Go subscription balance remain subject to the source account and its billing rules.
 - A discovered model is a catalog entry, not proof of account access, protocol compatibility, or successful output. Media endpoints require their own integration and verification.
+- The Sources page can preview and add missing models for the configured BBAI, Openlux and OpenCode adapters. Automatic additions are optional and off by default; Rust owns startup and six-hour checks while the app resides in the tray. Upstream removals are flagged for review while existing routes and grants are retained. Source credentials stay at LiteLLM through fixed authenticated GET catalog routes.
 - A browser-only preview must clearly identify unavailable desktop capabilities rather than invent connected state, project usage, or authorization results.
 - This workflow reduces upstream-key distribution and routine key handling in chats; it does not isolate credentials from malicious processes running as the same OS user.
 

@@ -228,6 +228,8 @@ pub async fn install_update(
                 let broker = handle.state::<Arc<Broker>>();
                 let _lock = requests::try_lock(&broker.directory, "mutation.lock")
                     .map_err(|_| "另一个凭证操作正在进行，请稍后重新安装更新。")?;
+                let _sources = requests::try_lock(&broker.directory, "source-sync.lock")
+                    .map_err(|_| "来源正在同步，请完成后重新安装更新。")?;
                 publish(&handle, |inner| {
                     inner.view.status = "installing".into();
                     inner.view.downloaded = bytes.len() as u64;

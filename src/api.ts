@@ -7,6 +7,7 @@ import type {
   TestResult,
   AgentIntegration,
   UpdateStatus,
+  SourceStatus,
 } from "./types";
 
 export const desktop = isTauri();
@@ -30,6 +31,13 @@ export async function getSnapshot(): Promise<Snapshot> {
 }
 
 export const api = {
+  sources: () => invoke<SourceStatus[]>("source_status"),
+  checkSource: (source: string) =>
+    invoke<SourceStatus>("check_source", { source }),
+  applySource: (source: string, models: string[]) =>
+    invoke<SourceStatus>("apply_source_models", { source, models }),
+  sourceAutoAdd: (source: string, enabled: boolean) =>
+    invoke<SourceStatus>("set_source_auto_add", { source, enabled }),
   updateStatus: () => invoke<UpdateStatus>("update_status"),
   checkUpdate: () => invoke<UpdateStatus>("check_update"),
   installUpdate: () => invoke<void>("install_update"),

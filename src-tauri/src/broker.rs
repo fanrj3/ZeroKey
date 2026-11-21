@@ -111,6 +111,7 @@ fn gateway_error(code: u16, body: &Value) -> String {
         401 => "网关拒绝了凭证，请检查连接或重新授权。".into(),
         403 => "当前凭证没有这个模型或操作的权限。".into(),
         402 | 422 => "预算或套餐额度不足，请检查网关与来源账户。".into(),
+        429 => "请求过于频繁，或来源暂时限流，请稍后重试。".into(),
         _ => format!("网关请求失败（HTTP {code}），请稍后重试。"),
     }
 }
@@ -242,7 +243,7 @@ impl Broker {
         Ok((connected, projects.len(), active, spend))
     }
 
-    fn base(&self) -> Result<String, String> {
+    pub(crate) fn base(&self) -> Result<String, String> {
         self.settings
             .lock()
             .map(|settings| settings.gateway.clone())
@@ -281,10 +282,10 @@ impl Broker {
         projects.retain(|project| project.id != id);
         self.save_projects(&projects)
     }
-    fn api(&self, method: Method, path: &str) -> Result<Value, String> {
+    pub(crate) fn api(&self, method: Method, path: &str) -> Result<Value, String> {
         self.api_body(method, path, None, None)
     }
-    fn api_body(
+    pub(crate) fn api_body(
         &self,
         method: Method,
         path: &str,
@@ -669,6 +670,9 @@ pub fn run_cli() -> Option<i32> {
         let action = args.get(2).map(String::as_str).unwrap_or("status");
         let body: Value = serde_json::from_str(args.get(3).map(String::as_str).unwrap_or("{}"))
             .map_err(|_| "无效的本地 Broker 命令。")?;
+        if action.starts_with("source-") {
+            return crate::sources::operator_command(&state, action, body);
+        }
         if action == "models" {
             return Ok(json!({"models":state.models()?,"checkedAt":Utc::now().to_rfc3339()}));
         }

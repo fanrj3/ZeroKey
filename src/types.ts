@@ -3,6 +3,31 @@ export interface Model {
   source: string;
   protocol: string;
 }
+export interface SourceCandidate {
+  id: string;
+  protocol: string;
+}
+export interface SourceSyncEvent {
+  at: string;
+  action: "auto" | "add" | "check";
+  added: number;
+  pending: number;
+  missing: number;
+  error: string | null;
+}
+export interface SourceStatus {
+  id: string;
+  registered: number;
+  supported: boolean;
+  autoAdd: boolean;
+  checkedAt: string | null;
+  syncedAt: string | null;
+  pending: SourceCandidate[];
+  missing: string[];
+  lastAdded: string[];
+  error: string | null;
+  history: SourceSyncEvent[];
+}
 export interface Project {
   id: string;
   name: string;

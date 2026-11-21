@@ -5,6 +5,7 @@ mod desktop;
 mod integration;
 mod native;
 mod requests;
+mod sources;
 mod updates;
 
 fn main() {
@@ -23,6 +24,7 @@ fn main() {
             tauri::Manager::manage(app, broker.clone());
             desktop::setup(app.handle(), broker)?;
             updates::setup(app.handle());
+            sources::setup(app.handle());
             if std::env::args().any(|arg| arg == "--background") {
                 if let Some(window) = tauri::Manager::get_webview_window(app, "main") {
                     window.hide()?;
@@ -78,6 +80,10 @@ fn main() {
             updates::update_status,
             updates::check_update,
             updates::install_update,
+            sources::source_status,
+            sources::check_source,
+            sources::apply_source_models,
+            sources::set_source_auto_add,
         ])
         .run(tauri::generate_context!())
         .expect("Could not start the ZeroKey desktop application");

@@ -6073,7 +6073,7 @@ dependencies = [
 
 [[package]]
 name = "zerokey"
-version = "0.2.3"
+version = "0.3.0"
 dependencies = [
  "argon2",
  "chrono",

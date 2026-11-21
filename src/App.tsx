@@ -129,9 +129,11 @@ export default function App() {
       }
     });
     const changed = listen("projects-changed", () => void refresh());
+    const modelsChanged = listen("models-changed", () => void refresh());
     return () => {
       void navigation.then((fn) => fn()).catch(() => {});
       void changed.then((fn) => fn()).catch(() => {});
+      void modelsChanged.then((fn) => fn()).catch(() => {});
     };
   }, [refresh, closePanel]);
   const projects = snapshot?.projects ?? [];
@@ -350,6 +352,7 @@ export default function App() {
                         models={snapshot.models}
                         connected={connected}
                         onDashboard={dashboard}
+                        onSynced={refresh}
                       />
                     )}
                     {page === "usage" && (

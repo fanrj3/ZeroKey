@@ -32,15 +32,18 @@ import { desktop } from "@/api";
 import type { Model } from "@/types";
 import { modelCapability, modelLabel, sourceName } from "@/types";
 import { filterModels } from "@/lib/format";
+import { SourceSync } from "./source-sync";
 
 export function SourcesPage({
   models,
   connected,
   onDashboard,
+  onSynced,
 }: {
   models: Model[];
   connected: boolean;
   onDashboard: () => void;
+  onSynced: () => Promise<void>;
 }) {
   const [source, setSource] = useState("all");
   const [query, setQuery] = useState("");
@@ -63,6 +66,7 @@ export function SourcesPage({
           管理来源
         </Button>
       </PageHeading>
+      <SourceSync models={models} connected={connected} onSynced={onSynced} />
       <div className="space-y-2">
         <p className="text-sm text-muted-foreground">
           目录条目需实际调用确认可用性，接口标签仅表示目录类型。图片、音频和视频需单独适配。
