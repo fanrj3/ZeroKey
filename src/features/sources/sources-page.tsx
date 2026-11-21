@@ -69,7 +69,7 @@ export function SourcesPage({
       <SourceSync models={models} connected={connected} onSynced={onSynced} />
       <div className="space-y-2">
         <p className="text-sm text-muted-foreground">
-          目录条目需实际调用确认可用性，接口标签仅表示目录类型。图片、音频和视频需单独适配。
+          以下仅列出可获取型号，不可获取条目见来源同步预览。目录条目需实际调用验证，图片、音频和视频需单独适配。
         </p>
         {sources.length > 0 && (
           <Collapsible>

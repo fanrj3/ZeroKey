@@ -128,6 +128,21 @@ test("untrusted broker errors cannot echo sensitive diagnostic text", async (t) 
   const health = await client.call("zerokey_health");
   assert.equal(health.structuredContent.connected, true);
 });
+
+test("unavailable project models preserve the grant but do not offer a launcher", async (t) => {
+  const client = await fixture(t);
+  const result = await client.call("zerokey_project_status", {
+    projectPath: process.cwd() + "/unavailable",
+  });
+  assert.notEqual(result.isError, true);
+  assert.equal(result.structuredContent.status, "unavailable");
+  assert.equal(result.structuredContent.project.status, "unavailable");
+  assert.equal(result.structuredContent.credentialPresent, true);
+  assert.equal(result.structuredContent.launcher, undefined);
+  assert.deepEqual(result.structuredContent.project.models, [
+    "source/approved",
+  ]);
+});
 test("approval reports actual granted scope and authentication cannot falsely cancel", async (t) => {
   const client = await fixture(t);
   const approved = await client.call("zerokey_request_status", {

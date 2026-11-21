@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../../src/App";
 import { ThemeProvider } from "../../src/components/theme-provider";
 import { GrantSheet } from "../../src/features/projects/grant-sheet";
+import { ProjectSheet } from "../../src/features/projects/project-sheet";
 import {
   ApprovalForm,
   ApprovalWindow,
@@ -82,6 +83,31 @@ function sheetAnimations() {
     return styles;
   });
 }
+
+it("identifies unavailable project models and allows review without offering a text test", () => {
+  render(
+    <ThemeProvider>
+      <ProjectSheet
+        project={{ ...project, status: "unavailable" }}
+        connected
+        onClose={vi.fn()}
+        onEdit={vi.fn()}
+        onRevoked={vi.fn(async () => {})}
+        onTested={vi.fn(async () => {})}
+      />
+    </ThemeProvider>,
+  );
+  expect(screen.getByText("模型不可获取")).toBeTruthy();
+  expect(
+    (screen.getByRole("button", { name: "测试文字输出" }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true);
+  expect(
+    (screen.getByRole("button", { name: "调整授权" }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(false);
+  expect(screen.getByText(project.models[0])).toBeTruthy();
+});
 
 function finishSheetAnimation(element: Element) {
   const event = new Event("animationend", { bubbles: true });

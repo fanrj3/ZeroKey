@@ -15,6 +15,7 @@ export function projectStatus(project: Project): string {
         blocked: "已停用",
         revoked: "已撤销",
         unknown: "状态未知",
+        unavailable: "模型不可获取",
       } as Record<string, string>
     )[project.status] ?? "需要检查"
   );

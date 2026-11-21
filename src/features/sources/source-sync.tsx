@@ -6,7 +6,13 @@ import {
   useState,
 } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { CircleCheck, Loader2, RefreshCw, TriangleAlert } from "lucide-react";
+import {
+  Ban,
+  CircleCheck,
+  Loader2,
+  RefreshCw,
+  TriangleAlert,
+} from "lucide-react";
 import { toast } from "sonner";
 import { api, desktop } from "@/api";
 import type { Model, SourceStatus } from "@/types";
@@ -229,9 +235,9 @@ export function SourceSync({
                           {time(source?.syncedAt ?? source?.checkedAt ?? null)}
                         </p>
                         {!!source?.missing.length && (
-                          <p className="text-xs text-warning">
-                            {source.missing.length} 个型号待检查
-                          </p>
+                          <StatusBadge tone="danger" icon={Ban}>
+                            {source.missing.length} 个型号不可获取
+                          </StatusBadge>
                         )}
                       </div>
                     </TableCell>
@@ -399,11 +405,11 @@ export function SourceSync({
               )}
               {!!review?.missing.length && (
                 <section className="space-y-2">
-                  <h3 className="font-medium text-warning">
-                    上游未返回 {review.missing.length} 个已接入型号
+                  <h3 className="font-medium text-destructive">
+                    {review.missing.length} 个型号不可获取
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    已标记为待检查，已有路由和项目授权保留。可在管理来源中核实。
+                    上游最近一次成功同步未返回这些型号，已从可选目录中移除。后续同步重新返回时恢复可选。
                   </p>
                   <ul className="space-y-1 text-xs">
                     {review.missing.map((id) => (
@@ -436,7 +442,7 @@ export function SourceSync({
                           }
                         >
                           {event.error ??
-                            `新增 ${event.added} · 待添加 ${event.pending} · 待检查 ${event.missing}`}
+                            `新增 ${event.added} · 待添加 ${event.pending} · 不可获取 ${event.missing}`}
                         </p>
                       </li>
                     ))}

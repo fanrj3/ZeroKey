@@ -71,7 +71,7 @@ export function ProjectStatusBadge({ project }: { project: Project }) {
   const tone =
     project.status === "active"
       ? "success"
-      : project.status === "blocked" || project.status === "revoked"
+      : ["blocked", "revoked", "unavailable"].includes(project.status)
         ? "danger"
         : "warning";
   const icon =
@@ -79,7 +79,7 @@ export function ProjectStatusBadge({ project }: { project: Project }) {
       ? CircleCheck
       : project.status === "expired"
         ? Clock3
-        : project.status === "blocked" || project.status === "revoked"
+        : ["blocked", "revoked", "unavailable"].includes(project.status)
           ? Ban
           : CircleHelp;
   return (

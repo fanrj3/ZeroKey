@@ -105,7 +105,9 @@ fn gateway_error(code: u16, body: &Value) -> String {
     match code {
         400 => match body["error"]["param"].as_str() {
             Some("key_alias") => "网关中已存在同名凭证，请更新 ZeroKey 后重新授权。".into(),
-            Some("max_budget") => "网关拒绝了预算设置，请检查 LiteLLM 的预算上限与账户额度。".into(),
+            Some("max_budget") => {
+                "网关拒绝了预算设置，请检查 LiteLLM 的预算上限与账户额度。".into()
+            }
             _ => "网关拒绝了请求参数（HTTP 400），请检查模型、预算或有效期配置。".into(),
         },
         401 => "网关拒绝了凭证，请检查连接或重新授权。".into(),
@@ -129,6 +131,16 @@ fn key_status(info: &Value) -> String {
         }
     }
     info["status"].as_str().unwrap_or("active").into()
+}
+
+fn project_status(info: &Value, models: &[String], unavailable: &BTreeSet<String>) -> String {
+    let status = key_status(info);
+    if status == "active" && !models.is_empty() && models.iter().all(|id| unavailable.contains(id))
+    {
+        "unavailable".into()
+    } else {
+        status
+    }
 }
 
 pub(crate) fn safe_write(path: &Path, value: &impl Serialize) -> Result<(), String> {
@@ -225,6 +237,11 @@ impl Broker {
 
     pub fn tray_summary(&self) -> Result<(bool, usize, usize, f64), String> {
         let connected = self.models().is_ok();
+        let unavailable = if connected {
+            crate::sources::unavailable_models(self)?
+        } else {
+            BTreeSet::new()
+        };
         let projects = self.projects()?;
         let mut active = 0;
         let mut spend = 0.0;
@@ -233,7 +250,7 @@ impl Broker {
                 if let Ok(info) =
                     self.api(Method::GET, &format!("/key/info?key={}", project.key_hash))
                 {
-                    if key_status(&info["info"]) == "active" {
+                    if project_status(&info["info"], &project.models, &unavailable) == "active" {
                         active += 1;
                     }
                     spend += info["info"]["spend"].as_f64().unwrap_or(0.0);
@@ -329,11 +346,15 @@ impl Broker {
     }
     fn models(&self) -> Result<Vec<Model>, String> {
         let info = self.api(Method::GET, "/model/info")?;
+        let unavailable = crate::sources::unavailable_models(self)?;
         let mut models = Vec::new();
         for row in info["data"].as_array().into_iter().flatten() {
             let Some(id) = row["model_name"].as_str() else {
                 continue;
             };
+            if unavailable.contains(id) {
+                continue;
+            }
             let source = row["model_info"]["source"]
                 .as_str()
                 .or_else(|| id.split_once('/').map(|(source, _)| source))
@@ -394,13 +415,18 @@ pub async fn snapshot(state: State<'_, Arc<Broker>>) -> Result<Snapshot, String>
         let model_result = state.models();
         let connected = model_result.is_ok();
         let message = model_result.as_ref().err().cloned();
+        let unavailable = if connected {
+            crate::sources::unavailable_models(&state)?
+        } else {
+            BTreeSet::new()
+        };
         let mut projects = state.projects()?;
         if connected {
             for project in &mut projects {
                 if let Ok(info) =
                     state.api(Method::GET, &format!("/key/info?key={}", project.key_hash))
                 {
-                    project.status = key_status(&info["info"]);
+                    project.status = project_status(&info["info"], &project.models, &unavailable);
                     project.spend = info["info"]["spend"].as_f64().unwrap_or(0.0);
                     project.expires = info["info"]["expires"].as_str().map(String::from);
                 } else {
@@ -528,7 +554,9 @@ impl Broker {
         let available: BTreeSet<String> =
             self.models()?.into_iter().map(|model| model.id).collect();
         if !models.is_subset(&available) {
-            return Err("MODEL_UNAVAILABLE: 所选模型不在当前目录中。".into());
+            return Err(
+                "MODEL_UNAVAILABLE: 所选模型当前不可获取，请同步来源或选择其他型号。".into(),
+            );
         }
         if let Some(mut project) = self.projects()?.into_iter().find(|p| p.id == id) {
             if project.models.iter().cloned().collect::<BTreeSet<_>>() == models
@@ -741,7 +769,11 @@ pub fn run_cli() -> Option<i32> {
                 Some(mut project) => {
                     let info =
                         state.api(Method::GET, &format!("/key/info?key={}", project.key_hash))?;
-                    project.status = key_status(&info["info"]);
+                    project.status = project_status(
+                        &info["info"],
+                        &project.models,
+                        &crate::sources::unavailable_models(&state)?,
+                    );
                     project.expires = info["info"]["expires"].as_str().map(String::from);
                     let credential_present = native::read_secret(&format!("project/{id}"))?
                         .map(|key| hash(&key) == project.key_hash)
@@ -826,7 +858,7 @@ pub fn run_cli() -> Option<i32> {
             let model = catalog
                 .iter()
                 .find(|model| model.id == selected)
-                .ok_or("MODEL_UNAVAILABLE: 模型不在网关目录中。")?;
+                .ok_or("MODEL_UNAVAILABLE: 模型当前不可获取，请同步来源或调整项目授权。")?;
             for name in ["OPENAI_MODEL", "LLM_MODEL"] {
                 command.env(name, selected);
             }
@@ -885,7 +917,7 @@ pub async fn create_grant(
         let target = format!("project/{id}");
         let available: BTreeSet<String> = state.models()?.into_iter().map(|model| model.id).collect();
         let requested: BTreeSet<String> = request.models.iter().cloned().collect();
-        if !requested.is_subset(&available) { return Err("所选模型不在当前网关中，请刷新后重试。".into()); }
+        if !requested.is_subset(&available) { return Err("所选模型当前不可获取，请同步来源后重试。".into()); }
         let mut projects = state.projects()?;
         let old = projects.iter().find(|project| project.id == id).cloned();
         let old_key = native::read_secret(&target)?;
@@ -1103,7 +1135,10 @@ mod tests {
         grant.daily_budget = 100.;
         let replacement = issuance_body(&grant, &grant.models, "test-project");
         assert_ne!(first["key_alias"], replacement["key_alias"]);
-        assert!(replacement["key_alias"].as_str().unwrap().starts_with("zerokey/ScienceBoard-GIS/"));
+        assert!(replacement["key_alias"]
+            .as_str()
+            .unwrap()
+            .starts_with("zerokey/ScienceBoard-GIS/"));
         assert_eq!(replacement["max_budget"], 100.);
         assert_eq!(replacement["budget_duration"], "1d");
         assert_eq!(replacement["models"], json!(["test/text-model"]));
@@ -1111,7 +1146,10 @@ mod tests {
         assert_eq!(replacement["metadata"]["reasons"], json!(["代码辅助"]));
         assert!(replacement.get("duration").is_none());
         grant.duration = Some("7d".into());
-        assert_eq!(issuance_body(&grant, &grant.models, "test-project")["duration"], "7d");
+        assert_eq!(
+            issuance_body(&grant, &grant.models, "test-project")["duration"],
+            "7d"
+        );
     }
 
     #[test]
@@ -1189,6 +1227,32 @@ mod tests {
             key_status(&json!({"expires":"2099-01-01T00:00:00Z"})),
             "active"
         );
+    }
+
+    #[test]
+    fn project_usability_tracks_all_missing_models_without_overriding_key_health() {
+        let models = vec!["bbai/a".into(), "openlux/b".into()];
+        let mut unavailable = BTreeSet::from(["bbai/a".into()]);
+        assert_eq!(project_status(&json!({}), &models, &unavailable), "active");
+        unavailable.insert("openlux/b".into());
+        assert_eq!(
+            project_status(&json!({}), &models, &unavailable),
+            "unavailable"
+        );
+        assert_eq!(
+            project_status(&json!({"blocked":true}), &models, &unavailable),
+            "blocked"
+        );
+        assert_eq!(
+            project_status(
+                &json!({"expires":"2020-01-01T00:00:00Z"}),
+                &models,
+                &unavailable
+            ),
+            "expired"
+        );
+        unavailable.remove("bbai/a");
+        assert_eq!(project_status(&json!({}), &models, &unavailable), "active");
     }
     #[test]
     fn explicit_reason_edits_require_review_but_omission_preserves_reuse() {

@@ -152,7 +152,8 @@ describe("source model synchronization", () => {
     await user.click(
       await screen.findByRole("button", { name: "同步 BBAI 模型" }),
     );
-    expect(screen.getByText("上游未返回 1 个已接入型号")).toBeTruthy();
+    expect(screen.getAllByText("1 个型号不可获取").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/待检查/)).toBeNull();
     mocks.applySource.mockResolvedValue({
       ...preview,
       registered: 2,
@@ -168,6 +169,24 @@ describe("source model synchronization", () => {
         .getAttribute("aria-checked"),
     ).toBe("true");
   });
+  it("keeps source synchronization available when every model is unavailable", async () => {
+    const user = userEvent.setup();
+    mocks.sources.mockResolvedValue([
+      { ...source, checkedAt: preview.checkedAt, missing: ["bbai/old"] },
+    ]);
+    render(
+      <ThemeProvider>
+        <SourceSync models={[]} connected onSynced={vi.fn(async () => {})} />
+      </ThemeProvider>,
+    );
+    const sync = await screen.findByRole("button", { name: "同步 BBAI 模型" });
+    expect((sync as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByText("1 个型号不可获取")).toBeTruthy();
+    await user.click(sync);
+    expect(
+      screen.getByRole("dialog", { name: "同步预览 · BBAI" }),
+    ).toBeTruthy();
+  });
   it("makes synchronized models available in project authorization after refresh", async () => {
     const user = userEvent.setup();
     mocks.applySource.mockResolvedValue({
@@ -182,9 +201,7 @@ describe("source model synchronization", () => {
       </ThemeProvider>,
     );
     await screen.findByText("网关已连接");
-    await user.click(
-      screen.getByRole("button", { name: "模型来源" }),
-    );
+    await user.click(screen.getByRole("button", { name: "模型来源" }));
     await user.click(
       await screen.findByRole("button", { name: "同步 BBAI 模型" }),
     );
@@ -198,9 +215,7 @@ describe("source model synchronization", () => {
     await user.click(screen.getByRole("button", { name: "确认添加 2 个模型" }));
     await screen.findByText("已添加 2 个模型");
     await user.click(screen.getByRole("button", { name: "关闭" }));
-    await user.click(
-      screen.getByRole("button", { name: "项目授权" }),
-    );
+    await user.click(screen.getByRole("button", { name: "项目授权" }));
     await user.click(screen.getByRole("button", { name: "添加项目" }));
     expect(screen.getByRole("checkbox", { name: "gpt-6.2-sol" })).toBeTruthy();
     expect(

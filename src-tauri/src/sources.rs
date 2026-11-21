@@ -129,6 +129,25 @@ fn read_records(broker: &Broker) -> Result<Records, String> {
         Err(_) => Err("无法读取来源同步设置。".into()),
     }
 }
+
+fn unavailable_in_records(records: &Records) -> BTreeSet<String> {
+    records
+        .iter()
+        .filter(|(_, record)| record.checked_at.is_some())
+        .flat_map(|(source, record)| {
+            let prefix = format!("{source}/");
+            record
+                .missing
+                .iter()
+                .filter(move |id| id.starts_with(&prefix))
+                .cloned()
+        })
+        .collect()
+}
+
+pub(crate) fn unavailable_models(broker: &Broker) -> Result<BTreeSet<String>, String> {
+    Ok(unavailable_in_records(&read_records(broker)?))
+}
 fn rows(gateway: &impl Gateway) -> Result<Vec<Value>, String> {
     let data = gateway.call(Method::GET, "/model/info", None)?;
     data["data"]
@@ -281,8 +300,8 @@ fn text_model(id: &str) -> bool {
 fn catalog_models(spec: &Spec, catalog: &Value) -> Result<BTreeMap<String, Candidate>, String> {
     let data = catalog["data"]
         .as_array()
-        .filter(|data| !data.is_empty() && data.len() <= 20_000)
-        .ok_or("上游目录为空或格式异常，本次保留已有路由和检查记录。")?;
+        .filter(|data| data.len() <= 20_000)
+        .ok_or("上游目录格式异常，本次保留已有路由和检查记录。")?;
     let mut models = BTreeMap::new();
     for row in data {
         let id = row["id"]
@@ -316,9 +335,6 @@ fn catalog_models(spec: &Spec, catalog: &Value) -> Result<BTreeMap<String, Candi
                 protocol: protocol.into(),
             },
         );
-    }
-    if models.is_empty() {
-        return Err("上游没有可接入的文字型号，本次保留已有路由。".into());
     }
     Ok(models)
 }
@@ -380,7 +396,7 @@ fn cached_catalog(record: &Record, max_age: i64) -> Option<BTreeMap<String, Cand
         .as_ref()
         .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())?;
     let age = chrono::Utc::now().timestamp() - checked.timestamp();
-    if !(0..max_age).contains(&age) || record.catalog.is_empty() {
+    if !(0..max_age).contains(&age) {
         return None;
     }
     Some(
@@ -572,7 +588,12 @@ mod tests {
                     self.models.borrow_mut().push(body);
                     Ok(json!({}))
                 }
-                (Method::GET, "/zerokey/catalog/bbai") => Ok(self.catalog.clone()),
+                (Method::GET, "/zerokey/catalog/bbai") => {
+                    if self.failure.borrow().as_deref() == Some("catalog") {
+                        return Err("HTTP 503".into());
+                    }
+                    Ok(self.catalog.clone())
+                }
                 _ => panic!("Unexpected gateway operation: {path}"),
             }
         }
@@ -655,7 +676,6 @@ mod tests {
         .is_err());
         assert!(gateway.additions().is_empty());
         for bad in [
-            json!({"data":[]}),
             json!({"data":[{"id":"*"}]}),
             json!({"error":"private"}),
             json!({"data":[{"id":"a\nb"}]}),
@@ -666,6 +686,105 @@ mod tests {
             json!({"path":"/zerokey/catalog/bbai","target":"https://other.invalid/models","auth":false}),
         );
         assert!(ensure_catalog(&gateway, &source).is_err());
+    }
+    #[test]
+    fn missing_models_become_unavailable_and_returning_models_recover_without_route_changes() {
+        let mut gateway = Fake::new();
+        let mut record = Record::default();
+        let source = spec("bbai").unwrap();
+        inspect(&gateway, &source, &gateway.models.borrow(), &mut record).unwrap();
+        let mut records = Records::from([("bbai".into(), record)]);
+        assert_eq!(
+            unavailable_in_records(&records),
+            BTreeSet::from(["bbai/old".into()])
+        );
+
+        gateway.catalog = json!({"data":[{"id":"old"}]});
+        let record = records.get_mut("bbai").unwrap();
+        record.requested_at = 0;
+        inspect(&gateway, &source, &gateway.models.borrow(), record).unwrap();
+        assert!(unavailable_in_records(&records).is_empty());
+        assert_eq!(
+            registered(&gateway.models.borrow(), "bbai"),
+            BTreeSet::from(["bbai/old".into()])
+        );
+        assert!(gateway
+            .requests
+            .borrow()
+            .iter()
+            .all(|(method, _, _)| *method != Method::DELETE));
+        assert!(gateway.additions().is_empty());
+    }
+    #[test]
+    fn valid_empty_catalog_marks_all_registered_models_unavailable_and_is_cached() {
+        let mut gateway = Fake::new();
+        gateway.catalog = json!({"data":[]});
+        let mut record = Record::default();
+        assert!(inspect(
+            &gateway,
+            &spec("bbai").unwrap(),
+            &gateway.models.borrow(),
+            &mut record
+        )
+        .unwrap()
+        .is_empty());
+        assert!(record.pending.is_empty());
+        assert_eq!(record.missing, vec!["bbai/old"]);
+        assert!(cached_catalog(&record, 600).unwrap().is_empty());
+        assert_eq!(
+            unavailable_in_records(&Records::from([("bbai".into(), record)])),
+            BTreeSet::from(["bbai/old".into()])
+        );
+        assert!(catalog_models(
+            &spec("openlux").unwrap(),
+            &json!({"data":[{"id":"gpt-image-2"}]})
+        )
+        .unwrap()
+        .is_empty());
+    }
+    #[test]
+    fn failed_or_malformed_sync_keeps_the_last_successful_availability() {
+        let mut gateway = Fake::new();
+        let mut record = Record::default();
+        let source = spec("bbai").unwrap();
+        inspect(&gateway, &source, &gateway.models.borrow(), &mut record).unwrap();
+        let checked = record.checked_at.clone();
+        let catalog = record.catalog.clone();
+        for invalid in [
+            json!({"error":"unavailable"}),
+            json!({"data":[{"id":"*"}]}),
+            json!({"data":null}),
+        ] {
+            gateway.catalog = invalid;
+            record.requested_at = 0;
+            assert!(inspect(&gateway, &source, &gateway.models.borrow(), &mut record).is_err());
+            assert_eq!(record.checked_at, checked);
+            assert_eq!(record.catalog, catalog);
+            assert_eq!(record.missing, vec!["bbai/old"]);
+        }
+        *gateway.failure.borrow_mut() = Some("catalog".into());
+        record.requested_at = 0;
+        assert!(inspect(&gateway, &source, &gateway.models.borrow(), &mut record).is_err());
+        assert_eq!(record.checked_at, checked);
+        assert_eq!(record.catalog, catalog);
+        assert_eq!(
+            unavailable_in_records(&Records::from([("bbai".into(), record)])),
+            BTreeSet::from(["bbai/old".into()])
+        );
+    }
+    #[test]
+    fn unavailable_models_require_a_successful_check_and_remain_source_scoped() {
+        let record = Record {
+            missing: vec!["bbai/old".into(), "openlux/shared".into()],
+            ..Record::default()
+        };
+        let mut records = Records::from([("bbai".into(), record)]);
+        assert!(unavailable_in_records(&records).is_empty());
+        records.get_mut("bbai").unwrap().checked_at = Some(chrono::Utc::now().to_rfc3339());
+        assert_eq!(
+            unavailable_in_records(&records),
+            BTreeSet::from(["bbai/old".into()])
+        );
     }
     #[test]
     fn keeps_go_payg_protocols_separate_and_filters_openlux_media() {

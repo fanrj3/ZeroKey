@@ -44,9 +44,12 @@ serveStdio(() =>
       };
     if (action === "status") {
       if (String(body.path).includes("failure")) throw new Error(secret);
+      const status = String(body.path).endsWith("/unavailable")
+        ? "unavailable"
+        : "active";
       return {
-        status: "active",
-        project,
+        status,
+        project: { ...project, status },
         credentialPresent: true,
         checkedAt: "now",
         key: secret,
