@@ -9,13 +9,13 @@ general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
 
 # Daily budget amounts are chosen during local approval, without a fixed ceiling.
-# Reset-window and rate bounds apply to keys created here or in the Admin UI.
+# Reset-window and request-rate bounds apply to keys created here or in the Admin UI.
+# Token throughput is not capped here; upstream provider limits still apply.
 # Duration is intentionally omitted: a key with no duration does not expire.
 litellm_settings:
   upperbound_key_generate_params:
     budget_duration: 1d
     rpm_limit: 60
-    tpm_limit: 100000
   default_key_generate_params:
     max_budget: 1
     budget_duration: 1d
